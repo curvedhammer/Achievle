@@ -7,8 +7,7 @@ from PyQt6.QtCore import Qt, QSize
 from PyQt6.QtGui import QFont, QIntValidator
 from quest_data import load_data, save_data, TYPE_COLORS, TASK_TYPES, level_up_required
 from quest_editor import QuestEditor
-from datetime import datetime, timedelta
-from datetime import date
+from datetime import datetime, date, timedelta
 
 
 class QuestLogUI(QMainWindow):
@@ -69,6 +68,7 @@ class QuestLogUI(QMainWindow):
         layout.addLayout(sort_layout)
 
         self.quest_list = QListWidget()
+        self.quest_list.itemDoubleClicked.connect(self.edit_selected_quest)
         layout.addWidget(self.quest_list)
 
     def setup_stats_tab(self):
@@ -108,6 +108,19 @@ class QuestLogUI(QMainWindow):
             QTabBar::tab { padding: 8px 16px; }
         """)
 
+    def calculate_widget_height(self, title, desc, is_cumulative):
+        base_height = 40
+        button_height = 34
+        padding = 24
+        if desc:
+            lines = len(desc.splitlines())
+            desc_height = max(1, lines) * 20
+        else:
+            desc_height = 0
+        progress_height = 16 if is_cumulative else 0
+        total_height = base_height + desc_height + progress_height + button_height + padding
+        return max(100, int(total_height))
+
     def sort_quests(self, quests):
         mode = self.sort_combo.currentText()
         if mode == "По названию":
@@ -126,31 +139,48 @@ class QuestLogUI(QMainWindow):
         sorted_quests = self.sort_quests(self.data["quests"])
         for q in sorted_quests:
             item = QListWidgetItem()
-            item.setSizeHint(QSize(0, 100))
+            item.setData(Qt.ItemDataRole.UserRole, q["id"])
             self.quest_list.addItem(item)
 
             widget = QWidget()
             layout = QVBoxLayout(widget)
             layout.setContentsMargins(12, 8, 12, 8)
+            layout.setSpacing(6)
 
             top = QHBoxLayout()
             icon_text = q.get("icon", "🎮")
             icon = QLabel(icon_text)
-            icon.setFixedSize(32, 32)
+            icon.setFixedSize(36, 36)
             icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            icon.setStyleSheet(f"background: {TYPE_COLORS[q['type']]}; color: white; border-radius: 8px;")
+            icon.setStyleSheet(f"background: {TYPE_COLORS[q['type']]}; color: white; border-radius: 8px; font-size: 14px;")
+
+            name_layout = QVBoxLayout()
+            name_layout.setSpacing(2)
 
             name_label = QLabel(f"<b>{q['title']}</b>")
-            exp_label = QLabel(f"{q['xp']} XP")
-            exp_label.setStyleSheet(f"color: {TYPE_COLORS[q['type']]}; font-weight: bold;")
-            name_layout = QVBoxLayout()
+            name_label.setFont(QFont("Segoe UI", 10))
+            name_label.setWordWrap(True)
+            name_label.setMaximumWidth(300)
             name_layout.addWidget(name_label)
-            if q.get("desc"):
-                name_layout.addWidget(QLabel(f"<span style='color:#6B7280;font-size:9pt'>{q['desc']}</span>"))
+
+            raw_desc = q.get("desc", "")
+            if raw_desc:
+                desc_clean = "\n".join(line.strip() for line in raw_desc.splitlines() if line.strip())
+                if desc_clean:
+                    desc_label = QLabel(desc_clean)
+                    desc_label.setFont(QFont("Segoe UI", 9))
+                    desc_label.setStyleSheet("color: #6B7280; padding: 0px; margin: 0px;")
+                    desc_label.setWordWrap(True)
+                    desc_label.setMaximumWidth(300)
+                    name_layout.addWidget(desc_label)
+
+            exp_label = QLabel(f"{q['xp']} XP")
+            exp_label.setFont(QFont("Segoe UI", 10, QFont.Weight.Bold))
+            exp_label.setStyleSheet(f"color: {TYPE_COLORS[q['type']]};")
+
             top.addWidget(icon)
             top.addLayout(name_layout, 1)
             top.addWidget(exp_label)
-
             layout.addLayout(top)
 
             if q.get("is_cumulative"):
@@ -165,13 +195,21 @@ class QuestLogUI(QMainWindow):
                     QProgressBar::chunk {{ background: {TYPE_COLORS[q['type']]}; }}
                     QProgressBar {{ border-radius: 4px; background: #E5E7EB; }}
                 """)
-                pb.setFixedHeight(10)
+                pb.setFixedHeight(16)
                 layout.addWidget(pb)
 
-            btn = QPushButton("✅ Выполнить")
-            btn.setFixedWidth(100)
-            btn.clicked.connect(lambda _, q=q: self.complete_quest(q))
-            layout.addWidget(btn)
+            btn_layout = QHBoxLayout()
+            complete_btn = QPushButton("✅ Выполнить")
+            complete_btn.setFixedWidth(124)
+            complete_btn.setFixedHeight(34)
+            complete_btn.setFont(QFont("Segoe UI", 10, QFont.Weight.Medium))
+            complete_btn.clicked.connect(lambda _, q=q: self.complete_quest(q))
+            btn_layout.addWidget(complete_btn)
+            btn_layout.addStretch()
+            layout.addLayout(btn_layout)
+
+            height = self.calculate_widget_height(q["title"], q.get("desc", ""), q.get("is_cumulative", False))
+            item.setSizeHint(QSize(0, height))
 
             self.quest_list.setItemWidget(item, widget)
 
@@ -239,8 +277,7 @@ class QuestLogUI(QMainWindow):
                 top_layout.addWidget(QLabel(f"{icon} <b>{q['title']}</b> — {q['xp']} XP"))
             self.stats_layout.addWidget(top_widget)
 
-        from datetime import datetime, timedelta
-        today = datetime.today().date()
+        today = date.today()
         week_ago = today - timedelta(days=7)
         recent = [
             q for q in completed
@@ -276,6 +313,26 @@ class QuestLogUI(QMainWindow):
             save_data(self.data)
             self.update_display()
 
+    def edit_selected_quest(self, item):
+        quest_id = item.data(Qt.ItemDataRole.UserRole)
+        quest = None
+        for q in self.data["quests"]:
+            if q["id"] == quest_id:
+                quest = q
+                break
+        if quest is None:
+            return
+
+        editor = QuestEditor(self, quest_data=quest)
+        if editor.exec():
+            updated = editor.get_data()
+            for i, q in enumerate(self.data["quests"]):
+                if q["id"] == quest_id:
+                    self.data["quests"][i] = updated
+                    break
+            save_data(self.data)
+            self.update_display()
+
     def complete_quest(self, quest):
         if quest.get("is_cumulative"):
             dialog = QDialog(self)
@@ -297,9 +354,9 @@ class QuestLogUI(QMainWindow):
                 quest["current_value"] = new_val
 
                 if new_val >= quest["target_value"]:
-                    idx = next(i for i, q in enumerate(self.data["quests"]) if q["title"] == quest["title"])
-                    completed_quest = self.data["quests"].pop(idx)
-                    completed_quest["date"] = str(datetime.today().date())
+                    self.data["quests"] = [q for q in self.data["quests"] if q["id"] != quest["id"]]
+                    completed_quest = quest.copy()
+                    completed_quest["date"] = str(date.today())
                     self.data["xp"] += completed_quest["xp"]
                     self.data["completed_quests"].append(completed_quest)
                     while level_up_required(self.data["level"], self.data["xp"]):
@@ -309,8 +366,10 @@ class QuestLogUI(QMainWindow):
                     QMessageBox.information(self, "✅ Успех!", f"Достижение «{quest['title']}» завершено!")
                     dialog.accept()
                 else:
-                    idx = next(i for i, q in enumerate(self.data["quests"]) if q["title"] == quest["title"])
-                    self.data["quests"][idx]["current_value"] = new_val
+                    for q in self.data["quests"]:
+                        if q["id"] == quest["id"]:
+                            q["current_value"] = new_val
+                            break
                     save_data(self.data)
                     self.update_display()
                     dialog.accept()
@@ -320,15 +379,24 @@ class QuestLogUI(QMainWindow):
             layout.addWidget(btn)
             dialog.exec()
         else:
-            idx = next(i for i, q in enumerate(self.data["quests"]) if q["title"] == quest["title"])
-            completed_quest = self.data["quests"].pop(idx)
-            completed_quest["date"] = str(datetime.today().date())
+            reply = QMessageBox.question(
+                self, "Подтвердите",
+                f"Завершить достижение «{quest['title']}»?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+            )
+            if reply != QMessageBox.StandardButton.Yes:
+                return
+
+            self.data["quests"] = [q for q in self.data["quests"] if q["id"] != quest["id"]]
+            completed_quest = quest.copy()
+            completed_quest["date"] = str(date.today())
             self.data["xp"] += completed_quest["xp"]
             self.data["completed_quests"].append(completed_quest)
             while level_up_required(self.data["level"], self.data["xp"]):
                 self.data["level"] += 1
             save_data(self.data)
             self.update_display()
+            QMessageBox.information(self, "✅ Успех!", f"Достижение «{quest['title']}» завершено!")
 
     def closeEvent(self, event):
         save_data(self.data)

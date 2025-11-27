@@ -1,8 +1,10 @@
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QTextEdit,
-    QComboBox, QSpinBox, QPushButton
+    QComboBox, QSpinBox, QPushButton, QMessageBox
 )
 from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QFont
+import uuid
 from quest_data import TASK_TYPES, ICONS
 
 
@@ -24,18 +26,23 @@ class QuestEditor(QDialog):
         self.title_input.setPlaceholderText("Например: Пробежать 5 км")
         layout.addWidget(self.title_input)
 
-        layout.addWidget(QLabel("Описание (опционально):"))
+        layout.addWidget(QLabel("Описание (не более 200 символов):"))
         self.desc_input = QTextEdit()
         self.desc_input.setPlainText(self.quest_data.get("desc", ""))
         self.desc_input.setMaximumHeight(80)
+        self.desc_input.setFixedHeight(80)
+        self.desc_input.setPlaceholderText("Краткое описание")
+        self.desc_input.setFont(QFont("Segoe UI", 10))
+        self.desc_input.textChanged.connect(self.limit_description)
         layout.addWidget(self.desc_input)
 
         icon_layout = QHBoxLayout()
         icon_layout.addWidget(QLabel("Иконка:"))
         self.icon_combo = QComboBox()
         self.icon_combo.addItems(ICONS)
-        if self.quest_data.get("icon") in ICONS:
-            self.icon_combo.setCurrentText(self.quest_data["icon"])
+        icon = self.quest_data.get("icon")
+        if icon in ICONS:
+            self.icon_combo.setCurrentText(icon)
         else:
             self.icon_combo.setCurrentIndex(0)
         icon_layout.addWidget(self.icon_combo)
@@ -59,8 +66,8 @@ class QuestEditor(QDialog):
         self.xp_spin.setRange(1, 1000)
         self.xp_spin.setValue(self.quest_data.get("xp", 10))
         self.xp_spin.setFixedWidth(100)
+        self.xp_spin.setFixedHeight(36)
         xp_layout.addWidget(self.xp_spin)
-        xp_layout.addStretch()
         layout.addLayout(xp_layout)
 
         cumulative_layout = QHBoxLayout()
@@ -75,6 +82,8 @@ class QuestEditor(QDialog):
         self.target_spin = QSpinBox()
         self.target_spin.setRange(1, 10_000_000)
         self.target_spin.setValue(self.quest_data.get("target_value", 100))
+        self.target_spin.setFixedWidth(100)
+        self.target_spin.setFixedHeight(36)
 
         is_cumulative = self.quest_data.get("is_cumulative", False)
         self.target_label.setVisible(is_cumulative)
@@ -95,13 +104,24 @@ class QuestEditor(QDialog):
         layout.addLayout(btn_layout)
 
     def toggle_target(self, text):
-        visible = text == "Да"
+        visible = (text == "Да")
         self.target_label.setVisible(visible)
         self.target_spin.setVisible(visible)
+
+    def limit_description(self):
+        text = self.desc_input.toPlainText()
+        if len(text) > 200:
+            cursor = self.desc_input.textCursor()
+            scroll_pos = cursor.verticalMovementX()
+            self.desc_input.setPlainText(text[:200])
+            new_cursor = self.desc_input.textCursor()
+            new_cursor.movePosition(new_cursor.MoveOperation.End)
+            self.desc_input.setTextCursor(new_cursor)
 
     def get_data(self):
         is_cum = self.cumulative_check.currentText() == "Да"
         return {
+            "id": self.quest_data.get("id", str(uuid.uuid4())),
             "title": self.title_input.text().strip(),
             "desc": self.desc_input.toPlainText().strip(),
             "icon": self.icon_combo.currentText(),
