@@ -43,6 +43,7 @@ def _migrate_quest(quest):
     quest.setdefault("is_cumulative", False)
     quest.setdefault("target_value", 100 if quest["is_cumulative"] else 0)
     quest.setdefault("current_value", 0)
+    quest.setdefault("completed_today", False)
     return quest
 
 def restore_daily_quests(data):
@@ -61,6 +62,11 @@ def restore_daily_quests(data):
                 restored.append(q)
             else:
                 remaining_completed.append(q)
+        
+        for q in data["quests"]:
+            if q["type"] in daily_types:
+                q["completed_today"] = False
+                q["current_value"] = 0
 
         data["quests"].extend(restored)
         data["completed_quests"] = remaining_completed

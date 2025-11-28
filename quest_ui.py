@@ -214,12 +214,38 @@ class QuestLogUI(QMainWindow):
                 pb.setFixedHeight(16)
                 layout.addWidget(pb)
 
+            # Определяем, ежедневное ли и выполнено ли сегодня
+            is_daily = q["type"] in ["Ежедневное задание", "Продвинутое ежедневное задание"]
+            is_completed_today = q.get("completed_today", False)
+
+            # Кнопка
             btn_layout = QHBoxLayout()
-            complete_btn = QPushButton("✅ Выполнить")
+            complete_btn = QPushButton()
             complete_btn.setFixedWidth(124)
             complete_btn.setFixedHeight(34)
             complete_btn.setFont(QFont("Segoe UI", 10, QFont.Weight.Medium))
-            complete_btn.clicked.connect(lambda _, q=q: self.complete_quest(q))
+
+            if is_daily and is_completed_today:
+                complete_btn.setText("✅ Выполнено")
+                complete_btn.setEnabled(False)
+                # Стиль: серый фон
+                complete_btn.setStyleSheet("""
+                    QPushButton {
+                        background: #E5E7EB; color: #6B7280; border: none;
+                    }
+                """)
+            else:
+                complete_btn.setText("✅ Выполнить")
+                complete_btn.setEnabled(True)
+                complete_btn.setStyleSheet("""
+                    QPushButton {
+                        padding: 8px 16px; border-radius: 8px; font-weight: 600;
+                        background: #4A6CF7; color: white; border: none;
+                    }
+                    QPushButton:hover { background: #3a5bf5; }
+                """)
+                complete_btn.clicked.connect(lambda _, q=q: self.complete_quest(q))
+
             btn_layout.addWidget(complete_btn)
             btn_layout.addStretch()
             layout.addLayout(btn_layout)
@@ -389,6 +415,9 @@ class QuestLogUI(QMainWindow):
             self.update_display()
 
     def complete_quest(self, quest):
+        daily_types = ["Ежедневное задание", "Продвинутое ежедневное задание"]
+        is_daily = quest["type"] in daily_types
+
         if quest.get("is_cumulative"):
             dialog = QDialog(self)
             dialog.setWindowTitle("Добавить прогресс")
@@ -409,22 +438,22 @@ class QuestLogUI(QMainWindow):
                 quest["current_value"] = new_val
 
                 if new_val >= quest["target_value"]:
-                    self.data["quests"] = [q for q in self.data["quests"] if q["id"] != quest["id"]]
-                    completed_quest = quest.copy()
-                    completed_quest["date"] = str(date.today())
-                    self.data["xp"] += completed_quest["xp"]
-                    self.data["completed_quests"].append(completed_quest)
+                    # Помечаем как выполненное сегодня
+                    quest["completed_today"] = True
+                    # Добавляем XP
+                    self.data["xp"] += quest["xp"]
+                    # Сохраняем в историю
+                    completed_copy = quest.copy()
+                    completed_copy["date"] = str(date.today())
+                    self.data["completed_quests"].append(completed_copy)
+                    # Повышаем уровень
                     while level_up_required(self.data["level"], self.data["xp"]):
                         self.data["level"] += 1
                     save_data(self.data)
-                    self.update_display()
+                    self.update_display()  # ← ОБНОВЛЯЕМ ВИДЖЕТЫ!
                     QMessageBox.information(self, "✅ Успех!", f"Достижение «{quest['title']}» завершено!")
                     dialog.accept()
                 else:
-                    for q in self.data["quests"]:
-                        if q["id"] == quest["id"]:
-                            q["current_value"] = new_val
-                            break
                     save_data(self.data)
                     self.update_display()
                     dialog.accept()
@@ -434,24 +463,40 @@ class QuestLogUI(QMainWindow):
             layout.addWidget(btn)
             dialog.exec()
         else:
-            reply = QMessageBox.question(
-                self, "Подтвердите",
-                f"Завершить достижение «{quest['title']}»?",
-                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
-            )
-            if reply != QMessageBox.StandardButton.Yes:
-                return
-
-            self.data["quests"] = [q for q in self.data["quests"] if q["id"] != quest["id"]]
-            completed_quest = quest.copy()
-            completed_quest["date"] = str(date.today())
-            self.data["xp"] += completed_quest["xp"]
-            self.data["completed_quests"].append(completed_quest)
-            while level_up_required(self.data["level"], self.data["xp"]):
-                self.data["level"] += 1
-            save_data(self.data)
-            self.update_display()
-            QMessageBox.information(self, "✅ Успех!", f"Достижение «{quest['title']}» завершено!")
+            # Простое задание
+            if is_daily:
+                # Ежедневное — просто помечаем как выполненное
+                quest["completed_today"] = True
+                self.data["xp"] += quest["xp"]
+                completed_copy = quest.copy()
+                completed_copy["date"] = str(date.today())
+                self.data["completed_quests"].append(completed_copy)
+                while level_up_required(self.data["level"], self.data["xp"]):
+                    self.data["level"] += 1
+                save_data(self.data)
+                self.update_display()
+                QMessageBox.information(self, "✅ Успех!", f"Достижение «{quest['title']}» завершено!")
+            else:
+                # Обычное — спрашиваем подтверждение и удаляем
+                reply = QMessageBox.question(
+                    self,
+                    "Подтвердите",
+                    f"Завершить достижение «{quest['title']}»?",
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+                )
+                if reply != QMessageBox.StandardButton.Yes:
+                    return
+                # Удаляем из списка
+                self.data["quests"] = [q for q in self.data["quests"] if q["id"] != quest["id"]]
+                completed_quest = quest.copy()
+                completed_quest["date"] = str(date.today())
+                self.data["xp"] += completed_quest["xp"]
+                self.data["completed_quests"].append(completed_quest)
+                while level_up_required(self.data["level"], self.data["xp"]):
+                    self.data["level"] += 1
+                save_data(self.data)
+                self.update_display()
+                QMessageBox.information(self, "✅ Успех!", f"Достижение «{quest['title']}» завершено!")
 
     def closeEvent(self, event):
         save_data(self.data)
