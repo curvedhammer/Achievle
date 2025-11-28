@@ -58,6 +58,14 @@ class QuestLogUI(QMainWindow):
         layout = QVBoxLayout(self.active_tab)
         layout.setContentsMargins(0, 0, 0, 0)
 
+        search_layout = QHBoxLayout()
+        search_layout.addWidget(QLabel("Поиск:"))
+        self.search_input = QLineEdit()
+        self.search_input.setPlaceholderText("Введите название или описание...")
+        self.search_input.textChanged.connect(self.update_display)
+        search_layout.addWidget(self.search_input)
+        layout.addLayout(search_layout)
+
         sort_layout = QHBoxLayout()
         sort_layout.addWidget(QLabel("Сортировка:"))
         self.sort_combo = QComboBox()
@@ -69,10 +77,8 @@ class QuestLogUI(QMainWindow):
 
         self.quest_list = QListWidget()
         self.quest_list.itemDoubleClicked.connect(self.edit_selected_quest)
-    
         self.quest_list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.quest_list.customContextMenuRequested.connect(self.show_context_menu)
-    
         layout.addWidget(self.quest_list)
 
     def setup_stats_tab(self):
@@ -140,7 +146,18 @@ class QuestLogUI(QMainWindow):
 
     def update_display(self):
         self.quest_list.clear()
-        sorted_quests = self.sort_quests(self.data["quests"])
+
+        search_text = self.search_input.text().strip().lower()
+
+        filtered_quests = []
+        for q in self.data["quests"]:
+            title_match = search_text in q["title"].lower()
+            desc_match = search_text in q.get("desc", "").lower()
+            if search_text == "" or title_match or desc_match:
+                filtered_quests.append(q)
+
+        sorted_quests = self.sort_quests(filtered_quests)
+
         for q in sorted_quests:
             item = QListWidgetItem()
             item.setData(Qt.ItemDataRole.UserRole, q["id"])
@@ -159,24 +176,19 @@ class QuestLogUI(QMainWindow):
             icon.setStyleSheet(f"background: {TYPE_COLORS[q['type']]}; color: white; border-radius: 8px; font-size: 14px;")
 
             name_layout = QVBoxLayout()
-            name_layout.setSpacing(2)
-
             name_label = QLabel(f"<b>{q['title']}</b>")
             name_label.setFont(QFont("Segoe UI", 10))
             name_label.setWordWrap(True)
             name_label.setMaximumWidth(300)
             name_layout.addWidget(name_label)
 
-            raw_desc = q.get("desc", "")
-            if raw_desc:
-                desc_clean = "\n".join(line.strip() for line in raw_desc.splitlines() if line.strip())
-                if desc_clean:
-                    desc_label = QLabel(desc_clean)
-                    desc_label.setFont(QFont("Segoe UI", 9))
-                    desc_label.setStyleSheet("color: #6B7280; padding: 0px; margin: 0px;")
-                    desc_label.setWordWrap(True)
-                    desc_label.setMaximumWidth(300)
-                    name_layout.addWidget(desc_label)
+            if q.get("desc"):
+                desc_label = QLabel(q["desc"])
+                desc_label.setFont(QFont("Segoe UI", 9))
+                desc_label.setStyleSheet("color: #6B7280;")
+                desc_label.setWordWrap(True)
+                desc_label.setMaximumWidth(300)
+                name_layout.addWidget(desc_label)
 
             exp_label = QLabel(f"{q['xp']} XP")
             exp_label.setFont(QFont("Segoe UI", 10, QFont.Weight.Bold))
@@ -352,6 +364,8 @@ class QuestLogUI(QMainWindow):
 
         global_pos = self.quest_list.mapToGlobal(position)
         menu.popup(global_pos)
+    
+
 
     def delete_selected_quest(self, item):
         quest_id = item.data(Qt.ItemDataRole.UserRole)
