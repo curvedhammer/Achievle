@@ -1,7 +1,7 @@
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel,
     QListWidget, QListWidgetItem, QProgressBar, QComboBox, QMessageBox, QDialog, QLineEdit,
-    QTabWidget, QFrame, QGridLayout, QScrollArea
+    QTabWidget, QFrame, QGridLayout, QScrollArea, QMenu
 )
 from PyQt6.QtCore import Qt, QSize
 from PyQt6.QtGui import QFont, QIntValidator
@@ -69,6 +69,10 @@ class QuestLogUI(QMainWindow):
 
         self.quest_list = QListWidget()
         self.quest_list.itemDoubleClicked.connect(self.edit_selected_quest)
+    
+        self.quest_list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.quest_list.customContextMenuRequested.connect(self.show_context_menu)
+    
         layout.addWidget(self.quest_list)
 
     def setup_stats_tab(self):
@@ -330,6 +334,43 @@ class QuestLogUI(QMainWindow):
                 if q["id"] == quest_id:
                     self.data["quests"][i] = updated
                     break
+            save_data(self.data)
+            self.update_display()
+
+    def show_context_menu(self, position):
+        item = self.quest_list.itemAt(position)
+        if not item:
+            return
+
+        menu = QMenu(self)
+
+        edit_action = menu.addAction("✏️ Редактировать")
+        delete_action = menu.addAction("🗑️ Удалить")
+
+        edit_action.triggered.connect(lambda: self.edit_selected_quest(item))
+        delete_action.triggered.connect(lambda: self.delete_selected_quest(item))
+
+        global_pos = self.quest_list.mapToGlobal(position)
+        menu.popup(global_pos)
+
+    def delete_selected_quest(self, item):
+        quest_id = item.data(Qt.ItemDataRole.UserRole)
+        quest = None
+        for q in self.data["quests"]:
+            if q["id"] == quest_id:
+                quest = q
+                break
+        if not quest:
+            return
+
+        reply = QMessageBox.question(
+            self,
+            "Подтверждение удаления",
+            f"Удалить задание «{quest['title']}»?\nЭто действие нельзя отменить.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+        if reply == QMessageBox.StandardButton.Yes:
+            self.data["quests"] = [q for q in self.data["quests"] if q["id"] != quest_id]
             save_data(self.data)
             self.update_display()
 
