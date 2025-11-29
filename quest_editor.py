@@ -15,9 +15,16 @@ class QuestEditor(QDialog):
         self.setModal(True)
         self.resize(450, 450)
         self.quest_data = quest_data or {}
-        self.setup_ui()
 
-    def setup_ui(self):
+        self.theme = "light"
+        if parent is not None:
+            try:
+                if hasattr(parent, 'get_current_theme'):
+                    self.theme = parent.get_current_theme()
+            except Exception:
+                pass
+        self.apply_theme(self.theme)
+
         layout = QVBoxLayout(self)
         layout.setSpacing(16)
 
@@ -131,3 +138,69 @@ class QuestEditor(QDialog):
             "target_value": self.target_spin.value() if is_cum else 0,
             "current_value": self.quest_data.get("current_value", 0) if is_cum else 0,
         }
+    
+    def apply_theme(self, theme):
+        if theme == "dark":
+            self.setStyleSheet("""
+                QDialog {
+                    background-color: #111827;
+                    color: #E5E7EB;
+                    font-family: 'Segoe UI';
+                }
+                QLabel {
+                    color: #E5E7EB;
+                }
+                QLineEdit, QTextEdit, QComboBox, QSpinBox {
+                    background: #1F2937;
+                    color: #E5E7EB;
+                    border: 1px solid #374151;
+                    border-radius: 6px;
+                    padding: 4px;
+                }
+                QTextEdit {
+                    padding: 6px;
+                }
+                QPushButton {
+                    padding: 8px 16px;
+                    border-radius: 8px;
+                    font-weight: 600;
+                    background: #4F46E5;
+                    color: white;
+                    border: none;
+                }
+                QPushButton:hover {
+                    background: #4338CA;
+                }
+            """)
+        else:
+            self.setStyleSheet("""
+                QDialog {
+                    background-color: #F9FAFB;
+                    color: #1F2937;
+                    font-family: 'Segoe UI';
+                }
+                QLabel {
+                    color: #1F2937;
+                }
+                QLineEdit, QTextEdit, QComboBox, QSpinBox {
+                    background: white;
+                    color: #1F2937;
+                    border: 1px solid #E5E7EB;
+                    border-radius: 6px;
+                    padding: 4px;
+                }
+                QTextEdit {
+                    padding: 6px;
+                }
+                QPushButton {
+                    padding: 8px 16px;
+                    border-radius: 8px;
+                    font-weight: 600;
+                    background: #4A6CF7;
+                    color: white;
+                    border: none;
+                }
+                QPushButton:hover {
+                    background: #3a5bf5;
+                }
+            """)

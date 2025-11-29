@@ -8,6 +8,7 @@ from PyQt6.QtGui import QFont, QIntValidator
 from quest_data import load_data, save_data, TYPE_COLORS, TASK_TYPES, level_up_required
 from quest_editor import QuestEditor
 from datetime import datetime, date, timedelta
+from settings_dialog import SettingsDialog
 
 
 class QuestLogUI(QMainWindow):
@@ -49,6 +50,10 @@ class QuestLogUI(QMainWindow):
 
         self.setup_active_tab()
         self.setup_stats_tab()
+
+        settings_btn = QPushButton("⚙️ Настройки")
+        settings_btn.clicked.connect(self.open_settings)
+        main_layout.addWidget(settings_btn)
 
         add_btn = QPushButton("➕ Добавить достижение")
         add_btn.clicked.connect(self.open_editor)
@@ -94,29 +99,55 @@ class QuestLogUI(QMainWindow):
         self.stats_layout.setContentsMargins(24, 24, 24, 24)
         self.stats_layout.setSpacing(16)
 
+        self.apply_scroll_content_style()
+
         self.scroll_area.setWidget(self.scroll_content)
         layout.addWidget(self.scroll_area)
 
     def apply_styles(self):
-        self.setStyleSheet("""
-            QMainWindow { background: #F9FAFB; }
-            QLabel { color: #1F2937; font-family: 'Segoe UI'; }
-            QPushButton {
-                padding: 8px 16px; border-radius: 8px; font-weight: 600;
-                background: #4A6CF7; color: white; border: none;
-            }
-            QPushButton:hover { background: #3a5bf5; }
-            QListWidget { border: none; background: transparent; }
-            QComboBox, QSpinBox, QLineEdit {
-                padding: 6px; border: 1px solid #E5E7EB; border-radius: 6px;
-            }
-            QProgressBar {
-                border: none; border-radius: 6px; background: #E5E7EB;
-            }
-            QProgressBar::chunk { background: #4A6CF7; border-radius: 6px; }
-            QTabWidget::pane { border: 1px solid #E5E7EB; border-radius: 12px; }
-            QTabBar::tab { padding: 8px 16px; }
-        """)
+        theme = self.data.get("theme", "light")
+        if theme == "dark":
+            self.setStyleSheet("""
+                QMainWindow { background: #111827; }
+                QLabel { color: #E5E7EB; font-family: 'Segoe UI'; }
+                QPushButton {
+                    padding: 8px 16px; border-radius: 8px; font-weight: 600;
+                    background: #4F46E5; color: white; border: none;
+                }
+                QPushButton:hover { background: #4338CA; }
+                QListWidget { border: none; background: transparent; }
+                QComboBox, QSpinBox, QLineEdit {
+                    padding: 6px; border: 1px solid #374151; border-radius: 6px;
+                    background: #1F2937; color: #E5E7EB;
+                }
+                QProgressBar {
+                    border: none; border-radius: 6px; background: #1F2937;
+                }
+                QProgressBar::chunk { background: #818CF8; border-radius: 6px; }
+                QTabWidget::pane { border: 1px solid #374151; border-radius: 12px; }
+                QTabBar::tab { padding: 8px 16px; background: #1F2937; color: #E5E7EB; }
+                QTabBar::tab:selected { background: #374151; }
+            """)
+        else:
+            self.setStyleSheet("""
+                QMainWindow { background: #F9FAFB; }
+                QLabel { color: #1F2937; font-family: 'Segoe UI'; }
+                QPushButton {
+                    padding: 8px 16px; border-radius: 8px; font-weight: 600;
+                    background: #4A6CF7; color: white; border: none;
+                }
+                QPushButton:hover { background: #3a5bf5; }
+                QListWidget { border: none; background: transparent; }
+                QComboBox, QSpinBox, QLineEdit {
+                    padding: 6px; border: 1px solid #E5E7EB; border-radius: 6px;
+                }
+                QProgressBar {
+                    border: none; border-radius: 6px; background: #E5E7EB;
+                }
+                QProgressBar::chunk { background: #4A6CF7; border-radius: 6px; }
+                QTabWidget::pane { border: 1px solid #E5E7EB; border-radius: 12px; }
+                QTabBar::tab { padding: 8px 16px; }
+            """)
 
     def calculate_widget_height(self, title, desc, is_cumulative):
         base_height = 40
@@ -292,7 +323,7 @@ class QuestLogUI(QMainWindow):
             type_stats[t] = (created, finished)
 
         type_widget = QFrame()
-        type_widget.setStyleSheet("background: white; border-radius: 12px; border: 1px solid #E5E7EB; padding: 16px;")
+        type_widget.setStyleSheet(self.get_card_style())
         type_layout = QVBoxLayout(type_widget)
         type_layout.addWidget(QLabel("<b>По типам:</b>"))
         grid = QGridLayout()
@@ -311,7 +342,7 @@ class QuestLogUI(QMainWindow):
         top_xp = sorted(completed, key=lambda x: x["xp"], reverse=True)[:3]
         if top_xp:
             top_widget = QFrame()
-            top_widget.setStyleSheet("background: white; border-radius: 12px; border: 1px solid #E5E7EB; padding: 16px;")
+            top_widget.setStyleSheet(self.get_card_style())
             top_layout = QVBoxLayout(top_widget)
             top_layout.addWidget(QLabel("<b>Топ достижений по XP:</b>"))
             for q in top_xp:
@@ -331,29 +362,28 @@ class QuestLogUI(QMainWindow):
 
     def add_stat_card(self, title, value, subtitle=""):
         card = QFrame()
-        card.setStyleSheet("""
-            background: white;
-            border-radius: 12px;
-            border: 1px solid #E5E7EB;
-            padding: 16px;
-        """)
+        card.setStyleSheet(self.get_card_style())
         layout = QVBoxLayout(card)
         layout.addWidget(QLabel(f"<b>{title}</b>"))
         layout.addWidget(QLabel(f"<h2 style='margin: 8px 0;'>{value}</h2>"))
         if subtitle:
-            layout.addWidget(QLabel(f"<span style='color:#6B7280;'>{subtitle}</span>"))
+            color = "#6B7280" if self.data.get("theme") == "light" else "#9CA3AF"
+            layout.addWidget(QLabel(f"<span style='color:{color};'>{subtitle}</span>"))
         self.stats_layout.addWidget(card)
 
     def open_editor(self):
-        editor = QuestEditor(self)
-        if editor.exec():
-            data = editor.get_data()
-            if not data["title"]:
-                QMessageBox.warning(self, "Ошибка", "Укажите название.")
-                return
-            self.data["quests"].append(data)
-            save_data(self.data)
-            self.update_display()
+        try:
+            editor = QuestEditor(self)
+            if editor.exec():
+                data = editor.get_data()
+                if not data["title"]:
+                    QMessageBox.warning(self, "Ошибка", "Укажите название.")
+                    return
+                self.data["quests"].append(data)
+                save_data(self.data)
+                self.update_display()
+        except Exception as e:
+            QMessageBox.critical(self, "❌ Ошибка", f"Не удалось открыть редактор:\n{str(e)}")
 
     def edit_selected_quest(self, item):
         quest_id = item.data(Qt.ItemDataRole.UserRole)
@@ -497,6 +527,60 @@ class QuestLogUI(QMainWindow):
                 save_data(self.data)
                 self.update_display()
                 QMessageBox.information(self, "✅ Успех!", f"Достижение «{quest['title']}» завершено!")
+    
+    def open_settings(self):
+        settings = SettingsDialog(
+            self,
+            current_theme=self.data.get("theme", "light"),
+            on_theme_change=self.apply_theme,
+            on_data_change=self.on_data_changed
+        )
+        settings.exec()
+
+    def apply_theme(self, theme):
+        """Применяет тему и сохраняет выбор."""
+        self.data["theme"] = theme
+        save_data(self.data)
+        self.apply_styles()  # Перезагружает стили
+
+    def on_data_changed(self, new_data):
+        """Обновляет данные после импорта или сброса."""
+        self.data = new_data
+        self.update_display()
+
+    def get_current_theme(self):
+        return self.data.get("theme", "light")
+    
+    def get_card_style(self):
+        """Возвращает стиль карточки в зависимости от темы."""
+        theme = self.data.get("theme", "light")
+        if theme == "dark":
+            return """
+                background: #1F2937;
+                border-radius: 12px;
+                border: 1px solid #374151;
+                padding: 16px;
+            """
+        else:
+            return """
+                background: white;
+                border-radius: 12px;
+                border: 1px solid #E5E7EB;
+                padding: 16px;
+            """
+    
+    def apply_scroll_content_style(self):
+        theme = self.data.get("theme", "light")
+        if theme == "dark":
+            self.scroll_content.setStyleSheet("""
+                background-color: #111827;
+                color: #E5E7EB;
+            """)
+        else:
+            self.scroll_content.setStyleSheet("""
+                background-color: #F9FAFB;
+                color: #1F2937;
+            """)
 
     def closeEvent(self, event):
         save_data(self.data)

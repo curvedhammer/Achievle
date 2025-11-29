@@ -1,7 +1,9 @@
 import json
 import os
 import uuid
-from datetime import date
+import shutil
+from datetime import date, datetime
+
 
 DATA_FILE = "quests.json"
 
@@ -31,7 +33,8 @@ DEFAULT_DATA = {
     "xp": 0,
     "quests": [],
     "completed_quests": [],
-    "daily_reset": str(date.today())
+    "daily_reset": str(date.today()),
+    "theme": "light"
 }
 
 def _migrate_quest(quest):
@@ -103,3 +106,18 @@ def save_data(data):
 
 def level_up_required(level, xp):
     return xp >= level * 100
+
+def export_data(filepath):
+    """Копирует quests.json в указанный файл."""
+    shutil.copy2(DATA_FILE, filepath)
+
+def import_data(filepath):
+    """Загружает данные из указанного файла."""
+    shutil.copy2(filepath, DATA_FILE)
+    return load_data()
+
+def reset_data():
+    """Сбрасывает все данные к начальному состоянию."""
+    if os.path.exists(DATA_FILE):
+        os.remove(DATA_FILE)
+    return load_data()
