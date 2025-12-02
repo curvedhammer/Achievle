@@ -94,6 +94,10 @@ def load_data():
     data["completed_quests"] = [_migrate_quest(q) for q in data.get("completed_quests", [])]
 
     data = restore_daily_quests(data)
+
+    from quest_data import get_current_level
+    data["level"] = get_current_level(data["xp"])
+
     return data
 
 def save_data(data):
@@ -104,8 +108,33 @@ def save_data(data):
     with open(DATA_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=4, ensure_ascii=False)
 
-def level_up_required(level, xp):
-    return xp >= level * 100
+def get_xp_for_level(level):
+    """Возвращает общий XP, необходимый для достижения уровня `level`."""
+    if level <= 1:
+        return 0
+    total = 0
+    step = 100
+    increment = 25
+    for lvl in range(2, level + 1):
+        total += step
+        step += increment
+    return total
+
+def get_current_level(xp):
+    """Определяет текущий уровень по общему XP."""
+    level = 1
+    while xp >= get_xp_for_level(level + 1):
+        level += 1
+    return level
+
+def get_xp_progress(xp):
+    """Возвращает (текущий уровень, текущий прогресс, цель)"""
+    level = get_current_level(xp)
+    xp_to_current = get_xp_for_level(level)
+    xp_to_next = get_xp_for_level(level + 1)
+    current_progress = xp - xp_to_current
+    target = xp_to_next - xp_to_current
+    return level, current_progress, target
 
 def export_data(filepath):
     """Копирует quests.json в указанный файл."""

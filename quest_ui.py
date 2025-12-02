@@ -5,7 +5,7 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt, QSize
 from PyQt6.QtGui import QFont, QIntValidator
-from quest_data import load_data, save_data, TYPE_COLORS, TASK_TYPES, level_up_required
+from quest_data import load_data, save_data, TYPE_COLORS, TASK_TYPES, level_up_required, get_xp_progress
 from quest_editor import QuestEditor
 from datetime import datetime, date, timedelta
 from settings_dialog import SettingsDialog
@@ -286,11 +286,12 @@ class QuestLogUI(QMainWindow):
 
             self.quest_list.setItemWidget(item, widget)
 
-        level, xp = self.data["level"], self.data["xp"]
-        xp_needed = level * 100
-        self.level_label.setText(f"Уровень {level} • {xp} / {xp_needed} XP")
-        self.xp_bar.setRange(0, xp_needed)
-        self.xp_bar.setValue(xp)
+        total_xp = self.data["xp"]
+        level, current_progress, target = get_xp_progress(total_xp)
+
+        self.level_label.setText(f"Уровень {level} • {current_progress} / {target} XP")
+        self.xp_bar.setRange(0, target)
+        self.xp_bar.setValue(current_progress)
 
         self.update_statistics()
 
@@ -420,8 +421,6 @@ class QuestLogUI(QMainWindow):
 
         global_pos = self.quest_list.mapToGlobal(position)
         menu.popup(global_pos)
-    
-
 
     def delete_selected_quest(self, item):
         quest_id = item.data(Qt.ItemDataRole.UserRole)
@@ -468,19 +467,14 @@ class QuestLogUI(QMainWindow):
                 quest["current_value"] = new_val
 
                 if new_val >= quest["target_value"]:
-                    # Помечаем как выполненное сегодня
                     quest["completed_today"] = True
-                    # Добавляем XP
                     self.data["xp"] += quest["xp"]
-                    # Сохраняем в историю
                     completed_copy = quest.copy()
                     completed_copy["date"] = str(date.today())
                     self.data["completed_quests"].append(completed_copy)
-                    # Повышаем уровень
-                    while level_up_required(self.data["level"], self.data["xp"]):
-                        self.data["level"] += 1
+                    self.data["level"] = get_current_level(self.data["xp"])
                     save_data(self.data)
-                    self.update_display()  # ← ОБНОВЛЯЕМ ВИДЖЕТЫ!
+                    self.update_display()
                     QMessageBox.information(self, "✅ Успех!", f"Достижение «{quest['title']}» завершено!")
                     dialog.accept()
                 else:
@@ -493,21 +487,17 @@ class QuestLogUI(QMainWindow):
             layout.addWidget(btn)
             dialog.exec()
         else:
-            # Простое задание
             if is_daily:
-                # Ежедневное — просто помечаем как выполненное
                 quest["completed_today"] = True
                 self.data["xp"] += quest["xp"]
                 completed_copy = quest.copy()
                 completed_copy["date"] = str(date.today())
-                self.data["completed_quests"].append(completed_copy)
-                while level_up_required(self.data["level"], self.data["xp"]):
-                    self.data["level"] += 1
+                self.data["xp"] += quest["xp"]
+                self.check_level_up()
                 save_data(self.data)
                 self.update_display()
                 QMessageBox.information(self, "✅ Успех!", f"Достижение «{quest['title']}» завершено!")
             else:
-                # Обычное — спрашиваем подтверждение и удаляем
                 reply = QMessageBox.question(
                     self,
                     "Подтвердите",
@@ -516,14 +506,12 @@ class QuestLogUI(QMainWindow):
                 )
                 if reply != QMessageBox.StandardButton.Yes:
                     return
-                # Удаляем из списка
                 self.data["quests"] = [q for q in self.data["quests"] if q["id"] != quest["id"]]
                 completed_quest = quest.copy()
                 completed_quest["date"] = str(date.today())
                 self.data["xp"] += completed_quest["xp"]
-                self.data["completed_quests"].append(completed_quest)
-                while level_up_required(self.data["level"], self.data["xp"]):
-                    self.data["level"] += 1
+                self.data["xp"] += quest["xp"]
+                self.check_level_up()
                 save_data(self.data)
                 self.update_display()
                 QMessageBox.information(self, "✅ Успех!", f"Достижение «{quest['title']}» завершено!")
@@ -591,6 +579,24 @@ class QuestLogUI(QMainWindow):
         else:
             self.scroll_content.setStyleSheet("background-color: #F9FAFB;")
             self.scroll_area.setStyleSheet("background-color: #F9FAFB; border: none;")
+    
+    def check_level_up(self):
+        from quest_data import get_current_level
+        old_level = self.data["level"]
+        new_level = get_current_level(self.data["xp"])
+        self.data["level"] = new_level
+        if new_level > old_level:
+            from PyQt6.QtWidgets import QMessageBox
+            msg = QMessageBox(self)
+            msg.setWindowTitle("🎉 Новый уровень!")
+            msg.setText(f"Поздравляем! Вы достигли <b>уровня {new_level}</b>!")
+            msg.setIcon(QMessageBox.Icon.Information)
+            msg.setStyleSheet("""
+                QMessageBox { background: #F0F9FF; }
+                QLabel { color: #0C4A6E; font-size: 14px; }
+                QPushButton { background: #38BDF8; color: white; padding: 6px 12px; border-radius: 6px; }
+            """)
+            msg.exec()
 
     def closeEvent(self, event):
         save_data(self.data)
