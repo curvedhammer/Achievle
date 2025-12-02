@@ -99,7 +99,7 @@ class QuestLogUI(QMainWindow):
         self.stats_layout.setContentsMargins(24, 24, 24, 24)
         self.stats_layout.setSpacing(16)
 
-        self.apply_scroll_content_style()
+        self.apply_stats_theme()
 
         self.scroll_area.setWidget(self.scroll_content)
         layout.addWidget(self.scroll_area)
@@ -538,10 +538,11 @@ class QuestLogUI(QMainWindow):
         settings.exec()
 
     def apply_theme(self, theme):
-        """Применяет тему и сохраняет выбор."""
         self.data["theme"] = theme
         save_data(self.data)
-        self.apply_styles()  # Перезагружает стили
+        self.apply_styles()
+        self.apply_stats_theme()
+        self.update_display()
 
     def on_data_changed(self, new_data):
         """Обновляет данные после импорта или сброса."""
@@ -581,6 +582,15 @@ class QuestLogUI(QMainWindow):
                 background-color: #F9FAFB;
                 color: #1F2937;
             """)
+
+    def apply_stats_theme(self):
+        theme = self.data.get("theme", "light")
+        if theme == "dark":
+            self.scroll_content.setStyleSheet("background-color: #111827;")
+            self.scroll_area.setStyleSheet("background-color: #111827; border: none;")
+        else:
+            self.scroll_content.setStyleSheet("background-color: #F9FAFB;")
+            self.scroll_area.setStyleSheet("background-color: #F9FAFB; border: none;")
 
     def closeEvent(self, event):
         save_data(self.data)
