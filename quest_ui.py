@@ -419,18 +419,34 @@ class QuestLogUI(QMainWindow):
         if not item:
             return
 
+        quest_id = item.data(Qt.ItemDataRole.UserRole)
+        quest = None
+        for q in self.data["quests"]:
+            if q["type"] and q["id"] == quest_id:
+                quest = q
+                break
+        if not quest:
+            return
+
         menu = QMenu(self)
 
         edit_action = menu.addAction("✏️ Редактировать")
         delete_action = menu.addAction("🗑️ Удалить")
+
+        # Дополнительные действия для накопительных заданий
+        if quest.get("is_cumulative", False):
+            menu.addSeparator()
+            reset_action = menu.addAction("🔄 Сбросить прогресс")
+            set_action = menu.addAction("🔢 Установить вручную")
+
+            reset_action.triggered.connect(lambda: self.reset_cumulative_progress(quest))
+            set_action.triggered.connect(lambda: self.set_cumulative_progress(quest))
 
         edit_action.triggered.connect(lambda: self.edit_selected_quest(item))
         delete_action.triggered.connect(lambda: self.delete_selected_quest(item))
 
         global_pos = self.quest_list.mapToGlobal(position)
         menu.popup(global_pos)
-    
-
 
     def delete_selected_quest(self, item):
         quest_id = item.data(Qt.ItemDataRole.UserRole)
@@ -612,6 +628,58 @@ class QuestLogUI(QMainWindow):
             stats_text += f" | Ежедневных: {len(completed_daily)}/{len(daily_quests)}"
 
         self.stats_label.setText(stats_text)
+    
+    def reset_cumulative_progress(self, quest):
+        """Сбрасывает прогресс накопительного задания до 0."""
+        quest["current_value"] = 0
+        save_data(self.data)
+        self.update_display()
+        QMessageBox.information(self, "🔄 Прогресс сброшен", f"Прогресс задания «{quest['title']}» сброшен.")
+
+    def reset_cumulative_progress(self, quest):
+        """Сбрасывает прогресс накопительного задания до 0."""
+        quest["current_value"] = 0
+        save_data(self.data)
+        self.update_display()
+        QMessageBox.information(self, "🔄 Прогресс сброшен", f"Прогресс задания «{quest['title']}» сброшен.")
+
+    def set_cumulative_progress(self, quest):
+        """Позволяет вручную установить текущее значение прогресса."""
+        dialog = QDialog(self)
+        dialog.setWindowTitle("🔢 Установить прогресс")
+        layout = QVBoxLayout(dialog)
+
+        layout.addWidget(QLabel(f"Цель: {quest['target_value']}"))
+        layout.addWidget(QLabel(f"Текущий прогресс: {quest['current_value']}"))
+
+        input_field = QLineEdit()
+        input_field.setValidator(QIntValidator(0, quest["target_value"]))
+        input_field.setText(str(quest["current_value"]))
+        input_field.setPlaceholderText(f"0–{quest['target_value']}")
+        layout.addWidget(input_field)
+
+        def apply_manual_value():
+            try:
+                new_value = int(input_field.text())
+                if 0 <= new_value <= quest["target_value"]:
+                    quest["current_value"] = new_value
+                    save_data(self.data)
+                    self.update_display()
+                    dialog.accept()
+
+                    # Если достигнута цель — завершить задание
+                    if new_value >= quest["target_value"]:
+                        self.complete_quest(quest)  # Это вызовет стандартный флоу завершения
+                else:
+                    QMessageBox.warning(dialog, "⚠️ Ошибка", "Значение вне допустимого диапазона.")
+            except ValueError:
+                QMessageBox.warning(dialog, "⚠️ Ошибка", "Введите корректное число.")
+
+        btn = QPushButton("Применить")
+        btn.clicked.connect(apply_manual_value)
+        layout.addWidget(btn)
+
+        dialog.exec()
 
     def closeEvent(self, event):
         save_data(self.data)

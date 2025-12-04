@@ -1,58 +1,8 @@
 {
-    "level": 4,
-    "xp": 310,
-    "quests": [
-        {
-            "id": "77febc36-2531-4313-86a1-68305005c48f",
-            "title": "мегнан",
-            "desc": "аа",
-            "icon": "🎮",
-            "type": "Обычное достижение",
-            "xp": 10,
-            "is_cumulative": false,
-            "target_value": 0,
-            "current_value": 0,
-            "completed_today": false
-        },
-        {
-            "id": "2c948c6b-90ef-4c06-a71b-7c7b47f2df8d",
-            "title": "вапвап",
-            "desc": "вапвапвап",
-            "icon": "🎮",
-            "type": "Обычное достижение",
-            "xp": 143,
-            "is_cumulative": false,
-            "target_value": 0,
-            "current_value": 0,
-            "completed_today": false
-        },
-        {
-            "id": "8cb9ef44-8563-4fcd-b16c-a97655bae078",
-            "title": "аывавыавыаыв",
-            "desc": "аыававыаыв",
-            "icon": "🎮",
-            "type": "Обычное достижение",
-            "xp": 10,
-            "is_cumulative": true,
-            "target_value": 1002,
-            "current_value": 444,
-            "completed_today": false
-        }
-    ],
-    "completed_quests": [
-        {
-            "id": "8a024dda-9f7a-4a1d-aa61-a6fc6aee332a",
-            "title": "у",
-            "desc": "у",
-            "icon": "🎮",
-            "type": "Обычное достижение",
-            "xp": 310,
-            "is_cumulative": false,
-            "target_value": 0,
-            "current_value": 0,
-            "date": "2025-11-29",
-            "completed_today": false
-        }
-    ],
-    "daily_reset": "2025-11-29"
+    "level": 1,
+    "xp": 0,
+    "quests": [],
+    "completed_quests": [],
+    "daily_reset": "2025-12-04",
+    "theme": "dark"
 }
