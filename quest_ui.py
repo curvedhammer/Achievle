@@ -83,6 +83,11 @@ class QuestLogUI(QMainWindow):
         sort_layout.addStretch()
         layout.addLayout(sort_layout)
 
+        self.stats_label = QLabel()
+        self.stats_label.setFont(QFont("Segoe UI", 9))
+        self.stats_label.setStyleSheet("color: #6B7280; padding: 4px;")
+        sort_layout.addWidget(self.stats_label)
+
         self.quest_list = QListWidget()
         self.quest_list.itemDoubleClicked.connect(self.edit_selected_quest)
         self.quest_list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
@@ -295,6 +300,7 @@ class QuestLogUI(QMainWindow):
         self.xp_bar.setRange(0, xp_needed)
         self.xp_bar.setValue(xp)
 
+        self.update_active_stats()
         self.update_statistics()
 
     def update_statistics(self):
@@ -590,6 +596,22 @@ class QuestLogUI(QMainWindow):
         else:
             self.scroll_content.setStyleSheet("background-color: #F9FAFB;")
             self.scroll_area.setStyleSheet("background-color: #F9FAFB; border: none;")
+    
+    def update_active_stats(self):
+        """Обновляет метку со статистикой активных задач и ежедневных заданий."""
+        quests = self.data["quests"]
+        total_active = len(quests)
+
+        daily_types = ["Ежедневное задание", "Продвинутое ежедневное задание"]
+        daily_quests = [q for q in quests if q["type"] in daily_types]
+        completed_daily = [q for q in daily_quests if q.get("completed_today", False)]
+        pending_daily = len(daily_quests) - len(completed_daily)
+
+        stats_text = f"Всего: {total_active}"
+        if daily_quests:
+            stats_text += f" | Ежедневных: {len(completed_daily)}/{len(daily_quests)}"
+
+        self.stats_label.setText(stats_text)
 
     def closeEvent(self, event):
         save_data(self.data)
