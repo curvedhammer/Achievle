@@ -94,10 +94,6 @@ def load_data():
     data["completed_quests"] = [_migrate_quest(q) for q in data.get("completed_quests", [])]
 
     data = restore_daily_quests(data)
-
-    from quest_data import get_current_level
-    data["level"] = get_current_level(data["xp"])
-
     return data
 
 def save_data(data):
@@ -108,33 +104,49 @@ def save_data(data):
     with open(DATA_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=4, ensure_ascii=False)
 
-def get_xp_for_level(level):
-    """Возвращает общий XP, необходимый для достижения уровня `level`."""
-    if level <= 1:
+def xp_needed_for_next_level(current_level):
+    """
+    Возвращает, сколько XP нужно для перехода с current_level на current_level + 1.
+    Уровень 1 → 2: 100 XP
+    Уровень 2 → 3: 150 XP
+    Уровень 3 → 4: 300 XP
+    Уровень n → n+1: total_xp(n) + 50
+    """
+    if current_level < 1:
+        current_level = 1
+
+    # Начинаем с уровня 1
+    total_xp = 0
+    # Вычисляем total_xp для текущего уровня
+    for lvl in range(1, current_level):
+        delta = total_xp + 50 if lvl > 1 else 100
+        total_xp += delta
+
+    # Теперь вычисляем delta для перехода на следующий уровень
+    if current_level == 1:
+        return 100
+    else:
+        return total_xp + 50
+
+
+def can_level_up(current_level, current_xp):
+    """Проверяет, можно ли повысить уровень."""
+    needed = xp_needed_for_next_level(current_level)
+    return current_xp >= needed
+
+
+def total_xp_for_level(target_level):
+    """Возвращает общий XP, необходимый для достижения target_level."""
+    if target_level <= 1:
         return 0
     total = 0
-    step = 100
-    increment = 25
-    for lvl in range(2, level + 1):
-        total += step
-        step += increment
+    for lvl in range(1, target_level):
+        if lvl == 1:
+            delta = 100
+        else:
+            delta = total + 50
+        total += delta
     return total
-
-def get_current_level(xp):
-    """Определяет текущий уровень по общему XP."""
-    level = 1
-    while xp >= get_xp_for_level(level + 1):
-        level += 1
-    return level
-
-def get_xp_progress(xp):
-    """Возвращает (текущий уровень, текущий прогресс, цель)"""
-    level = get_current_level(xp)
-    xp_to_current = get_xp_for_level(level)
-    xp_to_next = get_xp_for_level(level + 1)
-    current_progress = xp - xp_to_current
-    target = xp_to_next - xp_to_current
-    return level, current_progress, target
 
 def export_data(filepath):
     """Копирует quests.json в указанный файл."""
