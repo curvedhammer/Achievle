@@ -13,7 +13,14 @@ from quest_editor import QuestEditor
 from datetime import datetime, date, timedelta
 from settings_dialog import SettingsDialog
 
-
+CATEGORY_MAP = {
+    "Все": TASK_TYPES,
+    "Ежедневные задачи": ["Ежедневное задание", "Продвинутое ежедневное задание"],
+    "Задачи": ["Обычное задание", "Умеренное задание", "Задание повышенной сложности"],
+    "Достижения": ["Обычное достижение", "Умеренное достижение", "Продвинутое достижение"],
+    "Испытания": ["Испытание", "Продвинутое испытание"],
+    "Мастерство": ["Мастерство"]
+}
 class QuestLogUI(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -73,6 +80,16 @@ class QuestLogUI(QMainWindow):
         self.search_input.textChanged.connect(self.update_display)
         search_layout.addWidget(self.search_input)
         layout.addLayout(search_layout)
+
+        filter_layout = QHBoxLayout()
+        filter_layout.addWidget(QLabel("Категория:"))
+        self.category_combo = QComboBox()
+        self.category_combo.addItems(CATEGORY_MAP.keys())
+        self.category_combo.setCurrentText("Все")
+        self.category_combo.currentTextChanged.connect(self.update_display)
+        filter_layout.addWidget(self.category_combo)
+        filter_layout.addStretch()
+        layout.addLayout(filter_layout)
 
         sort_layout = QHBoxLayout()
         sort_layout.addWidget(QLabel("Сортировка:"))
@@ -171,29 +188,47 @@ class QuestLogUI(QMainWindow):
         return max(100, int(total_height))
 
     def sort_quests(self, quests):
+        daily_types = {"Ежедневное задание", "Продвинутое ежедневное задание"}
+        daily_quests = []
+        other_quests = []
+
+        for q in quests:
+            if q["type"] in daily_types:
+                daily_quests.append(q)
+            else:
+                other_quests.append(q)
+
+        daily_quests.sort(key=lambda x: x.get("completed_today", False))
+
         mode = self.sort_combo.currentText()
         if mode == "По названию":
-            return sorted(quests, key=lambda x: x["title"])
+            other_quests.sort(key=lambda x: x["title"])
         elif mode == "По типу":
             type_order = {t: i for i, t in enumerate(TASK_TYPES)}
-            return sorted(quests, key=lambda x: type_order.get(x["type"], 999))
+            other_quests.sort(key=lambda x: type_order.get(x["type"], 999))
         elif mode == "По XP (↓)":
-            return sorted(quests, key=lambda x: x["xp"], reverse=True)
+            other_quests.sort(key=lambda x: x["xp"], reverse=True)
         elif mode == "По XP (↑)":
-            return sorted(quests, key=lambda x: x["xp"])
-        return quests
+            other_quests.sort(key=lambda x: x["xp"])
+
+        return daily_quests + other_quests
 
     def update_display(self):
         self.quest_list.clear()
 
         search_text = self.search_input.text().strip().lower()
 
+        selected_category = self.category_combo.currentText()
+        allowed_types = set(CATEGORY_MAP[selected_category])
+
         filtered_quests = []
         for q in self.data["quests"]:
-            title_match = search_text in q["title"].lower()
-            desc_match = search_text in q.get("desc", "").lower()
-            if search_text == "" or title_match or desc_match:
-                filtered_quests.append(q)
+            if search_text:
+                if not (search_text in q["title"].lower() or search_text in q.get("desc", "").lower()):
+                    continue
+            if q["type"] not in allowed_types:
+                continue
+            filtered_quests.append(q)
 
         sorted_quests = self.sort_quests(filtered_quests)
 
@@ -614,12 +649,24 @@ class QuestLogUI(QMainWindow):
             self.scroll_area.setStyleSheet("background-color: #F9FAFB; border: none;")
     
     def update_active_stats(self):
-        """Обновляет метку со статистикой активных задач и ежедневных заданий."""
-        quests = self.data["quests"]
-        total_active = len(quests)
+        """Обновляет метку со статистикой активных задач и ежедневных заданий (с учётом фильтра)."""
+        search_text = self.search_input.text().strip().lower()
+        selected_category = self.category_combo.currentText()
+        allowed_types = set(CATEGORY_MAP[selected_category])
 
-        daily_types = ["Ежедневное задание", "Продвинутое ежедневное задание"]
-        daily_quests = [q for q in quests if q["type"] in daily_types]
+        filtered_quests = []
+        for q in self.data["quests"]:
+            if search_text:
+                if not (search_text in q["title"].lower() or search_text in q.get("desc", "").lower()):
+                    continue
+            if q["type"] not in allowed_types:
+                continue
+            filtered_quests.append(q)
+
+        total_active = len(filtered_quests)
+
+        daily_types = {"Ежедневное задание", "Продвинутое ежедневное задание"}
+        daily_quests = [q for q in filtered_quests if q["type"] in daily_types]
         completed_daily = [q for q in daily_quests if q.get("completed_today", False)]
         pending_daily = len(daily_quests) - len(completed_daily)
 
