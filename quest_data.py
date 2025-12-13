@@ -68,6 +68,7 @@ def _migrate_quest(quest):
     quest.setdefault("target_value", 100 if quest["is_cumulative"] else 0)
     quest.setdefault("current_value", 0)
     quest.setdefault("completed_today", False)
+    quest.setdefault("is_pinned", False)
     return quest
 
 def restore_daily_quests(data):

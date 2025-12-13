@@ -188,30 +188,45 @@ class QuestLogUI(QMainWindow):
         return max(100, int(total_height))
 
     def sort_quests(self, quests):
+        # Разделим на группы
         daily_types = {"Ежедневное задание", "Продвинутое ежедневное задание"}
-        daily_quests = []
-        other_quests = []
+
+        pinned = []
+        daily_unpinned = []
+        others = []
 
         for q in quests:
-            if q["type"] in daily_types:
-                daily_quests.append(q)
+            if q.get("is_pinned", False):
+                pinned.append(q)
+            elif q["type"] in daily_types:
+                daily_unpinned.append(q)
             else:
-                other_quests.append(q)
+                others.append(q)
 
-        daily_quests.sort(key=lambda x: x.get("completed_today", False))
+        # Сортируем группы
+        # 1. Закреплённые — сначала невыполненные ежедневные, потом всё остальное
+        pinned.sort(key=lambda x: (
+            x["type"] not in daily_types,  # ежедневные — первее (False < True)
+            x.get("completed_today", False),  # невыполненные — выше
+            x["title"]  # потом по названию
+        ))
 
+        # 2. Незакреплённые ежедневные: невыполненные — выше
+        daily_unpinned.sort(key=lambda x: x.get("completed_today", False))
+
+        # 3. Остальные — по текущему режиму
         mode = self.sort_combo.currentText()
         if mode == "По названию":
-            other_quests.sort(key=lambda x: x["title"])
+            others.sort(key=lambda x: x["title"])
         elif mode == "По типу":
             type_order = {t: i for i, t in enumerate(TASK_TYPES)}
-            other_quests.sort(key=lambda x: type_order.get(x["type"], 999))
+            others.sort(key=lambda x: type_order.get(x["type"], 999))
         elif mode == "По XP (↓)":
-            other_quests.sort(key=lambda x: x["xp"], reverse=True)
+            others.sort(key=lambda x: x["xp"], reverse=True)
         elif mode == "По XP (↑)":
-            other_quests.sort(key=lambda x: x["xp"])
+            others.sort(key=lambda x: x["xp"])
 
-        return daily_quests + other_quests
+        return pinned + daily_unpinned + others
 
     def update_display(self):
         self.quest_list.clear()
@@ -267,6 +282,22 @@ class QuestLogUI(QMainWindow):
             exp_label = QLabel(f"{q['xp']} XP")
             exp_label.setFont(QFont("Segoe UI", 10, QFont.Weight.Bold))
             exp_label.setStyleSheet(f"color: {TYPE_COLORS[q['type']]};")
+
+            pin_btn = QPushButton("📌" if q.get("is_pinned", False) else "📍")
+            pin_btn.setFixedSize(24, 24)
+            pin_btn.setStyleSheet("""
+                QPushButton {
+                    background: transparent;
+                    border: none;
+                    font-size: 14px;
+                    padding: 0;
+                }
+                QPushButton:hover {
+                    color: #F59E0B;
+                }
+            """)
+            pin_btn.clicked.connect(lambda _, q=q: self.toggle_pin_quest(q))
+            top.addWidget(pin_btn)
 
             top.addWidget(icon)
             top.addLayout(name_layout, 1)
@@ -727,6 +758,12 @@ class QuestLogUI(QMainWindow):
         layout.addWidget(btn)
 
         dialog.exec()
+    
+    def toggle_pin_quest(self, quest):
+        """Переключает статус закрепления задачи."""
+        quest["is_pinned"] = not quest.get("is_pinned", False)
+        save_data(self.data)
+        self.update_display()
 
     def closeEvent(self, event):
         save_data(self.data)
