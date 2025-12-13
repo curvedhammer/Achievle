@@ -54,6 +54,7 @@ DEFAULT_DATA = {
     "xp": 0,
     "quests": [],
     "completed_quests": [],
+    "archived_quests": [],
     "daily_reset": str(date.today()),
     "theme": "light"
 }

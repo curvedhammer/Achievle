@@ -69,6 +69,10 @@ class QuestLogUI(QMainWindow):
         add_btn.clicked.connect(self.open_editor)
         main_layout.addWidget(add_btn)
 
+        self.archive_tab = QWidget()
+        self.tabs.addTab(self.archive_tab, "Архив")
+        self.setup_archive_tab()
+
     def setup_active_tab(self):
         layout = QVBoxLayout(self.active_tab)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -188,7 +192,6 @@ class QuestLogUI(QMainWindow):
         return max(100, int(total_height))
 
     def sort_quests(self, quests):
-        # Разделим на группы
         daily_types = {"Ежедневное задание", "Продвинутое ежедневное задание"}
 
         pinned = []
@@ -203,18 +206,14 @@ class QuestLogUI(QMainWindow):
             else:
                 others.append(q)
 
-        # Сортируем группы
-        # 1. Закреплённые — сначала невыполненные ежедневные, потом всё остальное
         pinned.sort(key=lambda x: (
-            x["type"] not in daily_types,  # ежедневные — первее (False < True)
-            x.get("completed_today", False),  # невыполненные — выше
-            x["title"]  # потом по названию
+            x["type"] not in daily_types,  
+            x.get("completed_today", False), 
+            x["title"]  
         ))
 
-        # 2. Незакреплённые ежедневные: невыполненные — выше
         daily_unpinned.sort(key=lambda x: x.get("completed_today", False))
 
-        # 3. Остальные — по текущему режиму
         mode = self.sort_combo.currentText()
         if mode == "По названию":
             others.sort(key=lambda x: x["title"])
@@ -319,11 +318,9 @@ class QuestLogUI(QMainWindow):
                 pb.setFixedHeight(16)
                 layout.addWidget(pb)
 
-            # Определяем, ежедневное ли и выполнено ли сегодня
             is_daily = q["type"] in ["Ежедневное задание", "Продвинутое ежедневное задание"]
             is_completed_today = q.get("completed_today", False)
 
-            # Кнопка
             btn_layout = QHBoxLayout()
             complete_btn = QPushButton()
             complete_btn.setFixedWidth(124)
@@ -333,7 +330,6 @@ class QuestLogUI(QMainWindow):
             if is_daily and is_completed_today:
                 complete_btn.setText("✅ Выполнено")
                 complete_btn.setEnabled(False)
-                # Стиль: серый фон
                 complete_btn.setStyleSheet("""
                     QPushButton {
                         background: #E5E7EB; color: #6B7280; border: none;
@@ -486,33 +482,36 @@ class QuestLogUI(QMainWindow):
             return
 
         quest_id = item.data(Qt.ItemDataRole.UserRole)
+        if not quest_id:
+            return
+
         quest = None
         for q in self.data["quests"]:
-            if q["type"] and q["id"] == quest_id:
+            if q["id"] == quest_id:
                 quest = q
                 break
-        if not quest:
-            return
+
+        if quest is None:
+            return  
 
         menu = QMenu(self)
 
         edit_action = menu.addAction("✏️ Редактировать")
         delete_action = menu.addAction("🗑️ Удалить")
+        archive_action = menu.addAction("📦 Архивировать")
 
-        # Дополнительные действия для накопительных заданий
         if quest.get("is_cumulative", False):
             menu.addSeparator()
-            reset_action = menu.addAction("🔄 Сбросить прогресс")
+            reset_action = menu.addAction("🔄 Сбросить прогрress")
             set_action = menu.addAction("🔢 Установить вручную")
+            reset_action.triggered.connect(lambda _, q=quest: self.reset_cumulative_progress(q))
+            set_action.triggered.connect(lambda _, q=quest: self.set_cumulative_progress(q))
 
-            reset_action.triggered.connect(lambda: self.reset_cumulative_progress(quest))
-            set_action.triggered.connect(lambda: self.set_cumulative_progress(quest))
+        edit_action.triggered.connect(lambda _, q=quest: self.edit_selected_quest_by_id(q["id"]))
+        delete_action.triggered.connect(lambda _, q=quest: self.delete_selected_quest_by_id(q["id"]))
+        archive_action.triggered.connect(lambda _, q=quest: self.archive_selected_quest(q))
 
-        edit_action.triggered.connect(lambda: self.edit_selected_quest(item))
-        delete_action.triggered.connect(lambda: self.delete_selected_quest(item))
-
-        global_pos = self.quest_list.mapToGlobal(position)
-        menu.popup(global_pos)
+        menu.popup(self.quest_list.mapToGlobal(position))
 
     def delete_selected_quest(self, item):
         quest_id = item.data(Qt.ItemDataRole.UserRole)
@@ -580,9 +579,7 @@ class QuestLogUI(QMainWindow):
             layout.addWidget(btn)
             dialog.exec()
         else:
-            # Простое задание
             if is_daily:
-                # Ежедневное — просто помечаем как выполненное
                 quest["completed_today"] = True
                 self.data["xp"] += quest["xp"]
                 completed_copy = quest.copy()
@@ -594,7 +591,6 @@ class QuestLogUI(QMainWindow):
                 self.update_display()
                 QMessageBox.information(self, "✅ Успех!", f"Достижение «{quest['title']}» завершено!")
             else:
-                # Обычное — спрашиваем подтверждение и удаляем
                 reply = QMessageBox.question(
                     self,
                     "Подтвердите",
@@ -603,7 +599,6 @@ class QuestLogUI(QMainWindow):
                 )
                 if reply != QMessageBox.StandardButton.Yes:
                     return
-                # Удаляем из списка
                 self.data["quests"] = [q for q in self.data["quests"] if q["id"] != quest["id"]]
                 completed_quest = quest.copy()
                 completed_quest["date"] = str(date.today())
@@ -745,9 +740,8 @@ class QuestLogUI(QMainWindow):
                     self.update_display()
                     dialog.accept()
 
-                    # Если достигнута цель — завершить задание
                     if new_value >= quest["target_value"]:
-                        self.complete_quest(quest)  # Это вызовет стандартный флоу завершения
+                        self.complete_quest(quest) 
                 else:
                     QMessageBox.warning(dialog, "⚠️ Ошибка", "Значение вне допустимого диапазона.")
             except ValueError:
@@ -764,6 +758,194 @@ class QuestLogUI(QMainWindow):
         quest["is_pinned"] = not quest.get("is_pinned", False)
         save_data(self.data)
         self.update_display()
+
+    def setup_archive_tab(self):
+        layout = QVBoxLayout(self.archive_tab)
+        layout.setContentsMargins(0, 0, 0, 0)
+
+        search_layout = QHBoxLayout()
+        search_layout.addWidget(QLabel("Поиск:"))
+        self.archive_search = QLineEdit()
+        self.archive_search.setPlaceholderText("Введите название или описание...")
+        self.archive_search.textChanged.connect(self.update_archive_display)
+        search_layout.addWidget(self.archive_search)
+        layout.addLayout(search_layout)
+
+        self.archive_list = QListWidget()
+        self.archive_list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.archive_list.customContextMenuRequested.connect(self.show_archive_context_menu)
+        layout.addWidget(self.archive_list)
+
+        restore_all_btn = QPushButton("↩️ Вернуть всё в активные")
+        restore_all_btn.clicked.connect(self.restore_all_archived)
+        layout.addWidget(restore_all_btn)
+
+    def update_archive_display(self):
+        self.archive_list.clear()
+        search_text = self.archive_search.text().strip().lower()
+        archived = self.data["archived_quests"]
+
+        for quest in archived:
+            if search_text:
+                if not (search_text in quest["title"].lower() or search_text in quest.get("desc", "").lower()):
+                    continue
+
+            item = QListWidgetItem()
+            item.setData(Qt.ItemDataRole.UserRole, quest["id"])
+            self.archive_list.addItem(item)
+
+            widget = QWidget()
+            layout = QVBoxLayout(widget)
+            layout.setContentsMargins(12, 8, 12, 8)
+
+            top = QHBoxLayout()
+            icon_label = QLabel(quest.get("icon", "🎮"))
+            icon_label.setFixedSize(32, 32)
+            icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            icon_label.setStyleSheet(f"background: {TYPE_COLORS.get(quest['type'], '#4A6CF7')}; color: white; border-radius: 6px;")
+
+            name_label = QLabel(f"<b>{quest['title']}</b>")
+            name_label.setWordWrap(True)
+            name_label.setMaximumWidth(300)
+
+            xp_label = QLabel(f"{quest['xp']} XP")
+            xp_label.setStyleSheet(f"color: {TYPE_COLORS.get(quest['type'], '#4A6CF7')};")
+
+            top.addWidget(icon_label)
+            top.addWidget(name_label, 1)
+            top.addWidget(xp_label)
+            layout.addLayout(top)
+
+            if quest.get("desc"):
+                desc_label = QLabel(quest["desc"])
+                desc_label.setFont(QFont("Segoe UI", 9))
+                desc_label.setStyleSheet("color: #6B7280;")
+                desc_label.setWordWrap(True)
+                layout.addWidget(desc_label)
+
+            type_label = QLabel(f"<i>{quest['type']}</i>")
+            type_label.setFont(QFont("Segoe UI", 8))
+            type_label.setStyleSheet("color: #9CA3AF;")
+            layout.addWidget(type_label)
+
+            item.setSizeHint(QSize(0, 80))
+            self.archive_list.setItemWidget(item, widget)
+    
+    def show_archive_context_menu(self, position):
+        item = self.archive_list.itemAt(position)
+        if not item:
+            return
+
+        quest_id = item.data(Qt.ItemDataRole.UserRole)
+        quest = next((q for q in self.data["archived_quests"] if q["id"] == quest_id), None)
+        if not quest:
+            return
+
+        menu = QMenu(self)
+        restore_action = menu.addAction("↩️ Вернуть в активные")
+        delete_action = menu.addAction("🗑️ Удалить навсегда")
+
+        restore_action.triggered.connect(lambda: self.restore_archived_quest(quest))
+        delete_action.triggered.connect(lambda: self.delete_archived_quest(quest, item))
+
+        menu.popup(self.archive_list.mapToGlobal(position))
+
+    def restore_archived_quest(self, quest):
+        """Возвращает задачу из архива в активные."""
+        self.data["archived_quests"] = [q for q in self.data["archived_quests"] if q["id"] != quest["id"]]
+        if quest.get("is_cumulative"):
+            quest["current_value"] = 0
+        if quest["type"] in ["Ежедневное задание", "Продвинутое ежедневное задание"]:
+            quest["completed_today"] = False
+        self.data["quests"].append(quest)
+        save_data(self.data)
+        self.update_display()
+        self.update_archive_display()
+        QMessageBox.information(self, "✅ Восстановлено", f"«{quest['title']}» возвращено в активные.")
+
+    def delete_archived_quest(self, quest, item):
+        """Удаляет задачу из архива навсегда."""
+        reply = QMessageBox.warning(
+            self, "🗑️ Удалить навсегда?",
+            f"Удалить «{quest['title']}» из архива?\nЭто действие нельзя отменить.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+        if reply == QMessageBox.StandardButton.Yes:
+            self.data["archived_quests"] = [q for q in self.data["archived_quests"] if q["id"] != quest["id"]]
+            save_data(self.data)
+            self.update_archive_display()
+            QMessageBox.information(self, "✅ Удалено", "Задача удалена.")
+
+    def restore_all_archived(self):
+        """Возвращает все задачи из архива в активные."""
+        if not self.data["archived_quests"]:
+            return
+        reply = QMessageBox.question(
+            self, "↩️ Вернуть всё?",
+            f"Вернуть {len(self.data['archived_quests'])} задач в активные?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+        if reply == QMessageBox.StandardButton.Yes:
+            for quest in self.data["archived_quests"]:
+                if quest.get("is_cumulative"):
+                    quest["current_value"] = 0
+                if quest["type"] in ["Ежедневное задание", "Продвинутое ежедневное задание"]:
+                    quest["completed_today"] = False
+                self.data["quests"].append(quest)
+            self.data["archived_quests"] = []
+            save_data(self.data)
+            self.update_display()
+            self.update_archive_display()
+            QMessageBox.information(self, "✅ Готово", "Все задачи возвращены в активные.")
+    
+    def archive_selected_quest(self, quest):
+        """Перемещает задачу из активных в архив."""
+        self.data["quests"] = [q for q in self.data["quests"] if q["id"] != quest["id"]]
+        archived_copy = quest.copy()
+        self.data["archived_quests"].append(archived_copy)
+        save_data(self.data)
+        self.update_display()
+        self.update_archive_display()
+        QMessageBox.information(self, "📦 В архиве", f"«{quest['title']}» перемещено в архив.")
+    
+    def edit_selected_quest_by_id(self, quest_id):
+        """Редактирует задачу по ID."""
+        for q in self.data["quests"]:
+            if q["id"] == quest_id:
+                self.edit_selected_quest_by_ref(q)
+                return
+
+    def edit_selected_quest_by_ref(self, quest):
+        """Редактирует задачу по ссылке."""
+        editor = QuestEditor(self, quest_data=quest)
+        if editor.exec():
+            updated = editor.get_data()
+            for i, q in enumerate(self.data["quests"]):
+                if q["id"] == quest["id"]:
+                    self.data["quests"][i] = updated
+                    break
+            save_data(self.data)
+            self.update_display()
+
+    def delete_selected_quest_by_id(self, quest_id):
+        """Удаляет задачу по ID."""
+        for q in self.data["quests"]:
+            if q["id"] == quest_id:
+                self.confirm_delete_quest(q)
+                return
+
+    def confirm_delete_quest(self, quest):
+        """Подтверждает удаление задачи."""
+        reply = QMessageBox.question(
+            self,
+            "Подтверждение удаления",
+            f"Удалить задание «{quest['title']}»?\nЭто действие нельзя отменить.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+        if reply == QMessageBox.StandardButton.Yes:
+            self.data["quests"] = [q for q in self.data["quests"] if q["id"] != quest["id"]]
+            save_data(self.data)
+            self.update_display()
 
     def closeEvent(self, event):
         save_data(self.data)
