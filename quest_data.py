@@ -112,6 +112,7 @@ def load_data():
     data.setdefault("quests", [])
     data.setdefault("completed_quests", [])
     data.setdefault("daily_reset", str(date.today()))
+    data.setdefault("archived_quests", [])
 
     data["quests"] = [_migrate_quest(q) for q in data.get("quests", [])]
     data["completed_quests"] = [_migrate_quest(q) for q in data.get("completed_quests", [])]
