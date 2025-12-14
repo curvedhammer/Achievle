@@ -31,6 +31,11 @@ class QuestLogUI(QMainWindow):
         self.apply_styles()
         self.update_display()
 
+        from PyQt6.QtCore import QTimer
+        self.daily_check_timer = QTimer(self)
+        self.daily_check_timer.timeout.connect(self.check_daily_archive)
+        self.daily_check_timer.start(60 * 60 * 1000)
+
     def init_ui(self):
         central = QWidget()
         self.setCentralWidget(central)
@@ -967,6 +972,17 @@ class QuestLogUI(QMainWindow):
             self.data["quests"] = [q for q in self.data["quests"] if q["id"] != quest["id"]]
             save_data(self.data)
             self.update_display()
+    
+    def check_daily_archive(self):
+        """Проверяет, не появились ли просроченные задачи."""
+        from quest_data import archive_expired_quests, save_data
+        old_quests = len(self.data["quests"])
+        self.data = archive_expired_quests(self.data)
+        new_quests = len(self.data["quests"])
+        if new_quests != old_quests:
+            save_data(self.data)
+            self.update_display()
+            self.update_archive_display()
 
     def closeEvent(self, event):
         save_data(self.data)
