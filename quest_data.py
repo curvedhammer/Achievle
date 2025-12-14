@@ -60,7 +60,6 @@ DEFAULT_DATA = {
 }
 
 def _migrate_quest(quest):
-    """Добавляет недостающие поля в старую задачу."""
     quest.setdefault("id", str(uuid.uuid4()))
     quest.setdefault("icon", "🎮")
     quest.setdefault("type", "Обычное достижение")
@@ -70,6 +69,7 @@ def _migrate_quest(quest):
     quest.setdefault("current_value", 0)
     quest.setdefault("completed_today", False)
     quest.setdefault("is_pinned", False)
+    quest.setdefault("due_date", None)
     return quest
 
 def restore_daily_quests(data):
@@ -118,6 +118,7 @@ def load_data():
     data["completed_quests"] = [_migrate_quest(q) for q in data.get("completed_quests", [])]
 
     data = restore_daily_quests(data)
+    data = archive_expired_quests(data)
     return data
 
 def save_data(data):
@@ -186,3 +187,25 @@ def reset_data():
     if os.path.exists(DATA_FILE):
         os.remove(DATA_FILE)
     return load_data()
+
+def archive_expired_quests(data):
+    """Перемещает просроченные задачи в архив."""
+    today = date.today()
+    active = []
+    archived = data.get("archived_quests", []).copy()
+
+    for quest in data["quests"]:
+        due_str = quest.get("due_date")
+        if due_str:
+            try:
+                due = date.fromisoformat(due_str)
+                if today > due:
+                    archived.append(quest)
+                    continue
+            except ValueError:
+                pass 
+        active.append(quest)
+
+    data["quests"] = active
+    data["archived_quests"] = archived
+    return data

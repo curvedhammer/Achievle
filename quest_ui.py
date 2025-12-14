@@ -277,6 +277,27 @@ class QuestLogUI(QMainWindow):
                 desc_label.setWordWrap(True)
                 desc_label.setMaximumWidth(300)
                 name_layout.addWidget(desc_label)
+            
+            due_date = q.get("due_date")
+            if due_date:
+                try:
+                    due = date.fromisoformat(due_date)
+                    today = date.today()
+                    if today > due:
+                        due_text = f"⚠️ Просрочено: {due_date}"
+                        due_color = "#EF4444"
+                    elif today == due:
+                        due_text = f"🔥 Сегодня: {due_date}"
+                        due_color = "#F59E0B"
+                    else:
+                        due_text = f"📅 До: {due_date}"
+                        due_color = "#10B981"
+                    due_label = QLabel(due_text)
+                    due_label.setFont(QFont("Segoe UI", 9))
+                    due_label.setStyleSheet(f"color: {due_color};")
+                    name_layout.addWidget(due_label)
+                except ValueError:
+                    pass 
 
             exp_label = QLabel(f"{q['xp']} XP")
             exp_label.setFont(QFont("Segoe UI", 10, QFont.Weight.Bold))

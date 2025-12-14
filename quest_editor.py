@@ -101,6 +101,15 @@ class QuestEditor(QDialog):
         cumulative_layout.addStretch()
         layout.addLayout(cumulative_layout)
 
+        due_layout = QHBoxLayout()
+        due_layout.addWidget(QLabel("Дедлайн (опционально):"))
+        self.due_date_input = QLineEdit()
+        self.due_date_input.setPlaceholderText("ГГГГ-ММ-ДД (например: 2025-12-31)")
+        self.due_date_input.setText(self.quest_data.get("due_date", ""))
+        self.due_date_input.setInputMask("0000-00-00;_") 
+        due_layout.addWidget(self.due_date_input)
+        layout.addLayout(due_layout)
+
         btn_layout = QHBoxLayout()
         self.ok_btn = QPushButton("Сохранить")
         cancel_btn = QPushButton("Отмена")
@@ -127,6 +136,16 @@ class QuestEditor(QDialog):
 
     def get_data(self):
         is_cum = self.cumulative_check.currentText() == "Да"
+        due = self.due_date_input.text().strip()
+        if due and len(due) == 10:
+            try:
+                date.fromisoformat(due)
+                due_date = due
+            except ValueError:
+                due_date = None
+        else:
+            due_date = None
+
         return {
             "id": self.quest_data.get("id", str(uuid.uuid4())),
             "title": self.title_input.text().strip(),
@@ -137,6 +156,8 @@ class QuestEditor(QDialog):
             "is_cumulative": is_cum,
             "target_value": self.target_spin.value() if is_cum else 0,
             "current_value": self.quest_data.get("current_value", 0) if is_cum else 0,
+            "is_pinned": self.quest_data.get("is_pinned", False),
+            "due_date": due_date,  # ← сохраняем
         }
     
     def apply_theme(self, theme):
