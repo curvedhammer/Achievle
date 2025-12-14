@@ -130,24 +130,14 @@ def save_data(data):
         json.dump(data, f, indent=4, ensure_ascii=False)
 
 def xp_needed_for_next_level(current_level):
-    """
-    Возвращает, сколько XP нужно для перехода с current_level на current_level + 1.
-    Уровень 1 → 2: 100 XP
-    Уровень 2 → 3: 150 XP
-    Уровень 3 → 4: 300 XP
-    Уровень n → n+1: total_xp(n) + 50
-    """
     if current_level < 1:
         current_level = 1
 
-    # Начинаем с уровня 1
     total_xp = 0
-    # Вычисляем total_xp для текущего уровня
     for lvl in range(1, current_level):
         delta = total_xp + 50 if lvl > 1 else 100
         total_xp += delta
 
-    # Теперь вычисляем delta для перехода на следующий уровень
     if current_level == 1:
         return 100
     else:
