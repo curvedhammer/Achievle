@@ -971,12 +971,11 @@ class QuestLogUI(QMainWindow):
             self.update_display()
     
     def check_daily_archive(self):
-        """Проверяет, не появились ли просроченные задачи."""
-        from quest_data import archive_expired_quests, save_data
-        old_quests = len(self.data["quests"])
+        from quest_data import archive_expired_quests, restore_daily_quests, save_data
+        old_data = self.data.copy()  
         self.data = archive_expired_quests(self.data)
-        new_quests = len(self.data["quests"])
-        if new_quests != old_quests:
+        self.data = restore_daily_quests(self.data)  
+        if self.data != old_data:  
             save_data(self.data)
             self.update_display()
             self.update_archive_display()
