@@ -606,13 +606,17 @@ class QuestLogUI(QMainWindow):
             dialog.exec()
         else:
             if is_daily:
-                quest["completed_today"] = True
-                self.data["xp"] += quest["xp"]
+                self.data["quests"] = [q for q in self.data["quests"] if q["id"] != quest["id"]]
+                
                 completed_copy = quest.copy()
                 completed_copy["date"] = str(date.today())
+                completed_copy["completed_today"] = True
                 self.data["completed_quests"].append(completed_copy)
+                
+                self.data["xp"] += quest["xp"]
                 while can_level_up(self.data["level"], self.data["xp"]):
                     self.data["level"] += 1
+                
                 save_data(self.data)
                 self.update_display()
                 QMessageBox.information(self, "✅ Успех!", f"Достижение «{quest['title']}» завершено!")
@@ -727,13 +731,6 @@ class QuestLogUI(QMainWindow):
             stats_text += f" | Ежедневных: {len(completed_daily)}/{len(daily_quests)}"
 
         self.stats_label.setText(stats_text)
-    
-    def reset_cumulative_progress(self, quest):
-        """Сбрасывает прогресс накопительного задания до 0."""
-        quest["current_value"] = 0
-        save_data(self.data)
-        self.update_display()
-        QMessageBox.information(self, "🔄 Прогресс сброшен", f"Прогресс задания «{quest['title']}» сброшен.")
 
     def reset_cumulative_progress(self, quest):
         """Сбрасывает прогресс накопительного задания до 0."""
