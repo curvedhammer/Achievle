@@ -584,13 +584,16 @@ class QuestLogUI(QMainWindow):
                 quest["current_value"] = new_val
 
                 if new_val >= quest["target_value"]:
-                    quest["completed_today"] = True
-                    self.data["xp"] += quest["xp"]
+                    self.data["quests"] = [q for q in self.data["quests"] if q["id"] != quest["id"]]
+                    
                     completed_copy = quest.copy()
                     completed_copy["date"] = str(date.today())
                     self.data["completed_quests"].append(completed_copy)
+                    
+                    self.data["xp"] += quest["xp"]
                     while can_level_up(self.data["level"], self.data["xp"]):
                         self.data["level"] += 1
+                    
                     save_data(self.data)
                     self.update_display()
                     QMessageBox.information(self, "✅ Успех!", f"Достижение «{quest['title']}» завершено!")
