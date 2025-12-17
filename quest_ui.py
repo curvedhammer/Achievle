@@ -12,6 +12,7 @@ from quest_data import (
 from quest_editor import QuestEditor
 from datetime import datetime, date, timedelta
 from settings_dialog import SettingsDialog
+import copy
 
 CATEGORY_MAP = {
     "Все": TASK_TYPES,
@@ -586,7 +587,7 @@ class QuestLogUI(QMainWindow):
                 if new_val >= quest["target_value"]:
                     self.data["quests"] = [q for q in self.data["quests"] if q["id"] != quest["id"]]
                     
-                    completed_copy = quest.copy()
+                    completed_copy = copy.deepcopy(quest)
                     completed_copy["date"] = str(date.today())
                     self.data["completed_quests"].append(completed_copy)
                     
@@ -611,7 +612,7 @@ class QuestLogUI(QMainWindow):
             if is_daily:
                 self.data["quests"] = [q for q in self.data["quests"] if q["id"] != quest["id"]]
                 
-                completed_copy = quest.copy()
+                completed_copy = copy.deepcopy(quest)
                 completed_copy["date"] = str(date.today())
                 completed_copy["completed_today"] = True
                 self.data["completed_quests"].append(completed_copy)
@@ -633,7 +634,7 @@ class QuestLogUI(QMainWindow):
                 if reply != QMessageBox.StandardButton.Yes:
                     return
                 self.data["quests"] = [q for q in self.data["quests"] if q["id"] != quest["id"]]
-                completed_quest = quest.copy()
+                completed_quest = copy.deepcopy(quest)
                 completed_quest["date"] = str(date.today())
                 self.data["xp"] += completed_quest["xp"]
                 self.data["completed_quests"].append(completed_quest)
@@ -927,7 +928,7 @@ class QuestLogUI(QMainWindow):
     def archive_selected_quest(self, quest):
         """Перемещает задачу из активных в архив."""
         self.data["quests"] = [q for q in self.data["quests"] if q["id"] != quest["id"]]
-        archived_copy = quest.copy()
+        archived_copy = copy.deepcopy(quest)
         self.data["archived_quests"].append(archived_copy)
         save_data(self.data)
         self.update_display()
