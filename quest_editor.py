@@ -142,6 +142,7 @@ class QuestEditor(QDialog):
                 date.fromisoformat(due)
                 due_date = due
             except ValueError:
+                QMessageBox.warning(self, "⚠️ Неверная дата", "Формат даты: ГГГГ-ММ-ДД (например: 2025-12-31)")
                 due_date = None
         else:
             due_date = None
